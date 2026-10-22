@@ -10,3 +10,8 @@
 - Claude wrote the models, config, and seed script; I read them and ran them.
 - Decided: SQLite first, one usage event per call, UTC calendar month,
   integer micro-dollars, API keys stored only as SHA-256 hashes.
+
+## Stage 2
+- Claude wrote the auth dependency and the /me endpoint; I read them and ran them.
+- Decided: tenants identify themselves with a secret X-API-Key header.
+  Only the SHA-256 hash is stored. X-Tenant-ID was rejected because anyone can fake it.

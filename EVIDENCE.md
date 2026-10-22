@@ -27,3 +27,17 @@ GOOD - blocked: negative number of calls
 GOOD - blocked: same idempotency key twice for one tenant
        reason: UNIQUE constraint failed: usage_events.tenant_id, usage_events.idempotency_key
 ```
+
+## Stage 2: API key authentication
+
+```
+no key:
+{"detail":"Missing X-API-Key header."}
+HTTP 401
+wrong key:
+{"detail":"Invalid API key."}
+HTTP 401
+Alpha key (value hidden):
+{"tenant_id":1,"name":"Alpha Corp","plan":"free","monthly_call_quota":1000,"monthly_token_quota":100000,"subscription_status":"active"}
+HTTP 200
+```
