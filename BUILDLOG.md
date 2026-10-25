@@ -15,3 +15,9 @@
 - Claude wrote the auth dependency and the /me endpoint; I read them and ran them.
 - Decided: tenants identify themselves with a secret X-API-Key header.
   Only the SHA-256 hash is stored. X-Tenant-ID was rejected because anyone can fake it.
+
+## Stage 3
+- Claude wrote POST /generate, the metering service, and the validation; I read and ran them.
+- Decided: the server sets calls=1, the tenant comes only from the API key,
+  Idempotency-Key header is required, extra fields are rejected.
+- A repeated key returns 409 for now. Stage 5 will return the original response instead.
