@@ -63,3 +63,31 @@ HTTP 409
 6) database rows (id, tenant, key, calls, fresh, cached, output, reasoning):
 [(1, 1, 'stage3-test-001', 1, 100, 50, 500, 200)]
 ```
+
+## Stage 4: quota enforcement (Probe 2)
+
+Command: python -m scripts.check_quota (uses a temporary database)
+
+```
+--- Call boundary (Free plan = 1000 calls per month) ---
+PASS - calls 1 to 1000 all return 200
+PASS - call 1001 returns 429
+PASS - 429 has a Retry-After header
+   Retry-After: 577102 seconds
+   body: {'detail': {'error': 'quota_exceeded', 'quota': 'calls', 'message': 'Monthly calls quota exceeded.', 'limit': 1000, 'used': 1000, 'requested': 1, 'retry_after_seconds': 577102, 'hint': 'Upgrade to the Pro plan for higher limits, or wait until the quota resets.'}}
+PASS - exactly 1000 events are stored (the 1001st saved nothing)
+--- Token boundary (Free plan = 100000 tokens per month) ---
+PASS - a request landing exactly on the token limit returns 200
+PASS - one more token returns 429
+PASS - the error names the tokens quota
+--- Payment lapsed (Pro plan, past_due) ---
+PASS - past_due tenant returns 402
+PASS - the 402 saved nothing
+--- Race: 10 simultaneous requests when 999 of 1000 calls are used ---
+   status codes: [200, 429, 429, 429, 429, 429, 429, 429, 429, 429]
+PASS - exactly one request got 200
+PASS - the other nine got 429
+PASS - exactly 1000 events stored (never 1001 or more)
+
+All checks passed.
+```

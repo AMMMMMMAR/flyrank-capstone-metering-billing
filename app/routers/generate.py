@@ -8,6 +8,7 @@ from app.auth import get_current_tenant
 from app.database import get_db
 from app.models import Tenant
 from app.services.metering import DuplicateKeyError, record_usage
+from app.services.quota import PaymentRequiredError, QuotaExceededError
 
 router = APIRouter()
 
@@ -43,7 +44,7 @@ def generate(
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
-    """The dummy billable endpoint: records one usage event."""
+    """The dummy billable endpoint: checks the quota, then records one usage event."""
     key = (idempotency_key or "").strip()
     if not key or len(key) > 128:
         raise HTTPException(
@@ -60,6 +61,34 @@ def generate(
             cached_input_tokens=body.cached_input_tokens,
             output_tokens=body.output_tokens,
             reasoning_tokens=body.reasoning_tokens,
+        )
+    except PaymentRequiredError:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "payment_required",
+                "message": "Your last subscription payment failed. "
+                "Update your billing details to continue.",
+            },
+        )
+    except QuotaExceededError as error:
+        if error.plan_id == "free":
+            hint = "Upgrade to the Pro plan for higher limits, or wait until the quota resets."
+        else:
+            hint = "Wait until the quota resets at the start of the next UTC month."
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "quota_exceeded",
+                "quota": error.quota,
+                "message": f"Monthly {error.quota} quota exceeded.",
+                "limit": error.limit,
+                "used": error.used,
+                "requested": error.requested,
+                "retry_after_seconds": error.retry_after_seconds,
+                "hint": hint,
+            },
+            headers={"Retry-After": str(error.retry_after_seconds)},
         )
     except DuplicateKeyError:
         raise HTTPException(

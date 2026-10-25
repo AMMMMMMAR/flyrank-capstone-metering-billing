@@ -38,3 +38,9 @@ routers (HTTP and status codes) -> services (business rules) -> models (database
 
 ## Non-goals
 No invoicing, no proration, no overage billing, no real AI calls, no live Stripe mode.
+
+## Concurrency (added in Stage 4)
+- The quota check and the insert happen together in one critical section per tenant.
+- PostgreSQL: SELECT ... FOR UPDATE on the tenant row.
+- SQLite ignores FOR UPDATE, so a per-tenant Python lock is used (valid for one server process).
+- A rejected request (429 or 402) saves nothing, so it does not use up its Idempotency-Key.

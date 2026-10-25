@@ -21,3 +21,10 @@
 - Decided: the server sets calls=1, the tenant comes only from the API key,
   Idempotency-Key header is required, extra fields are rejected.
 - A repeated key returns 409 for now. Stage 5 will return the original response instead.
+
+## Stage 4
+- Claude wrote the quota service, the locking in the metering service, and the check script;
+  I read them and ran them.
+- Decided: rule is used + requested <= limit, UTC calendar month, 429 over quota,
+  402 only for past_due, nothing is saved for a rejected request.
+- Known limit: the Python lock only protects one server process. PostgreSQL row locks fix that.
