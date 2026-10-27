@@ -8,6 +8,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -90,4 +91,28 @@ class UsageEvent(Base):
         CheckConstraint("output_tokens >= 0", name="ck_usage_output_nonneg"),
         CheckConstraint("reasoning_tokens >= 0", name="ck_usage_reasoning_nonneg"),
         Index("idx_usage_tenant_recorded", "tenant_id", "recorded_at"),
+    )
+
+
+class IdempotencyRecord(Base):
+    """The saved answer for one (tenant, Idempotency-Key). Used to replay retries."""
+
+    __tablename__ = "idempotency_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # CASCADE is fine here: this table is a disposable cache, not the billing ledger.
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_body: Mapped[str] = mapped_column(Text, nullable=False)  # JSON text
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "key", name="uq_idempotency_tenant_key"),
+        Index("idx_idempotency_created", "created_at"),  # for the cleanup job (later)
     )

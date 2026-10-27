@@ -28,3 +28,12 @@
 - Decided: rule is used + requested <= limit, UTC calendar month, 429 over quota,
   402 only for past_due, nothing is saved for a rejected request.
 - Known limit: the Python lock only protects one server process. PostgreSQL row locks fix that.
+
+## Stage 5
+- Claude wrote the idempotency table, the new metering service, and the proof script;
+  I read them and ran them.
+- Decided: check the key BEFORE the quota, so a retry after a successful call gets the
+  original answer. Only successful (200) responses are saved.
+- Corrected an earlier plan: no in_progress row and no polling. One transaction plus the
+  tenant lock is simpler: a concurrent duplicate just waits, then replays.
+- Known limit: records are not deleted yet. A cleanup job comes in Stage 8.

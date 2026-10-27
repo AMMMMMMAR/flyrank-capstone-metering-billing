@@ -1,13 +1,15 @@
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_tenant
 from app.database import get_db
 from app.models import Tenant
-from app.services.metering import DuplicateKeyError, record_usage
+from app.services.metering import (
+    DuplicateKeyError,
+    IdempotencyKeyReuseError,
+    record_usage,
+)
 from app.services.quota import PaymentRequiredError, QuotaExceededError
 
 router = APIRouter()
@@ -34,17 +36,18 @@ class GenerateResponse(BaseModel):
     output_tokens: int
     reasoning_tokens: int
     total_tokens: int
-    recorded_at: datetime
+    recorded_at: str
 
 
 @router.post("/generate", response_model=GenerateResponse)
 def generate(
     body: GenerateRequest,
+    response: Response,
     idempotency_key: str | None = Header(default=None),
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
-    """The dummy billable endpoint: checks the quota, then records one usage event."""
+    """The dummy billable endpoint. Safe to retry: the same key counts once."""
     key = (idempotency_key or "").strip()
     if not key or len(key) > 128:
         raise HTTPException(
@@ -53,14 +56,15 @@ def generate(
         )
 
     try:
-        event = record_usage(
-            db=db,
-            tenant=tenant,
-            idempotency_key=key,
-            fresh_input_tokens=body.fresh_input_tokens,
-            cached_input_tokens=body.cached_input_tokens,
-            output_tokens=body.output_tokens,
-            reasoning_tokens=body.reasoning_tokens,
+        result, replayed = record_usage(db, tenant, key, body.model_dump())
+    except IdempotencyKeyReuseError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "idempotency_key_reused",
+                "message": "This Idempotency-Key was already used with a "
+                "different request body. Use a new key for a new request.",
+            },
         )
     except PaymentRequiredError:
         raise HTTPException(
@@ -93,24 +97,10 @@ def generate(
     except DuplicateKeyError:
         raise HTTPException(
             status_code=409,
-            detail="This Idempotency-Key was already used.",
+            detail="This Idempotency-Key was used before idempotency records "
+            "existed. Use a new key.",
         )
 
-    total = (
-        event.fresh_input_tokens
-        + event.cached_input_tokens
-        + event.output_tokens
-        + event.reasoning_tokens
-    )
-    return GenerateResponse(
-        result="Simulated response. Usage recorded.",
-        event_id=event.id,
-        tenant_id=event.tenant_id,
-        calls=event.calls,
-        fresh_input_tokens=event.fresh_input_tokens,
-        cached_input_tokens=event.cached_input_tokens,
-        output_tokens=event.output_tokens,
-        reasoning_tokens=event.reasoning_tokens,
-        total_tokens=total,
-        recorded_at=event.recorded_at,
-    )
+    if replayed:
+        response.headers["Idempotent-Replayed"] = "true"
+    return result

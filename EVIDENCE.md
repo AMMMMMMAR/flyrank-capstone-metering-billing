@@ -91,3 +91,76 @@ PASS - exactly 1000 events stored (never 1001 or more)
 
 All checks passed.
 ```
+
+## Stage 5: idempotency (Probe 1)
+
+Command: python -m scripts.check_idempotency (uses a temporary database)
+
+```
+--- Same request twice (same key, same body) ---
+PASS - first request returns 200
+PASS - second request returns 200
+PASS - second response is byte-for-byte the first
+PASS - first response is not marked as replayed
+PASS - second response is marked as replayed
+PASS - exactly 1 usage event stored
+   first : {'result': 'Simulated response. Usage recorded.', 'event_id': 1000, 'tenant_id': 1, 'calls': 1, 'fresh_input_tokens': 100, 'cached_input_tokens': 0, 'output_tokens': 500, 'reasoning_tokens': 0, 'total_tokens': 600, 'recorded_at': '2026-10-27T13:30:50.613251+00:00'}
+   second: {'result': 'Simulated response. Usage recorded.', 'event_id': 1000, 'tenant_id': 1, 'calls': 1, 'fresh_input_tokens': 100, 'cached_input_tokens': 0, 'output_tokens': 500, 'reasoning_tokens': 0, 'total_tokens': 600, 'recorded_at': '2026-10-27T13:30:50.613251+00:00'}
+--- Same key, different body ---
+PASS - returns 422
+PASS - error says idempotency_key_reused
+PASS - still exactly 1 usage event
+--- Same key text, different tenant ---
+PASS - tenant B gets its own 200
+PASS - tenant B's event belongs to tenant B
+PASS - one event each (A and B)
+--- Retry after the quota is used up (999 of 1000 calls used) ---
+PASS - the 1000th call returns 200
+PASS - a NEW key now returns 429
+PASS - the rejected request did not use up its key
+PASS - retrying the 1000th call returns 200, not 429
+PASS - the retry returns the original answer
+PASS - still exactly 1000 events
+--- Race: 10 identical requests at the same moment ---
+   status codes: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+   replayed answers: 9
+PASS - all 10 requests returned 200
+PASS - only 1 usage event was created
+PASS - all 10 answers are identical
+PASS - exactly 9 answers were replays
+
+All checks passed.
+```
+
+Same check against the real server (curl transcript, API key hidden):
+
+```
+1) first request:
+HTTP/1.1 200 OK
+date: Tue, 27 Oct 2026 13:32:47 GMT
+server: uvicorn
+content-length: 243
+content-type: application/json
+
+{"result":"Simulated response. Usage recorded.","event_id":3,"tenant_id":1,"calls":1,"fresh_input_tokens":100,"cached_input_tokens":0,"output_tokens":500,"reasoning_tokens":0,"total_tokens":600,"recorded_at":"2026-10-27T13:32:48.141716+00:00"}
+2) same request again:
+HTTP/1.1 200 OK
+date: Tue, 27 Oct 2026 13:32:47 GMT
+server: uvicorn
+content-length: 243
+content-type: application/json
+idempotent-replayed: true
+
+{"result":"Simulated response. Usage recorded.","event_id":3,"tenant_id":1,"calls":1,"fresh_input_tokens":100,"cached_input_tokens":0,"output_tokens":500,"reasoning_tokens":0,"total_tokens":600,"recorded_at":"2026-10-27T13:32:48.141716+00:00"}
+3) same key, different body:
+HTTP/1.1 422 Unprocessable Entity
+date: Tue, 27 Oct 2026 13:32:47 GMT
+server: uvicorn
+content-length: 159
+content-type: application/json
+
+{"detail":{"error":"idempotency_key_reused","message":"This Idempotency-Key was already used with a different request body. Use a new key for a new request."}}
+4) database:
+events with this key: 1
+saved responses with this key: 1
+```
