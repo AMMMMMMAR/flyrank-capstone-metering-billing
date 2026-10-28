@@ -54,3 +54,13 @@ No invoicing, no proration, no overage billing, no real AI calls, no live Stripe
 - Rejected requests (429, 402) are not saved, so they do not use up their key.
 - Keys belong to one tenant. The usage_events UNIQUE (tenant_id, idempotency_key) stays
   as a second safety net.
+
+## Pricing (added in Stage 6)
+- Unit: micro-dollars. 1 USD = 1,000,000. 1 cent = 10,000. Integers only.
+- Pinned in app/config.py (demo prices, not real provider prices):
+  call = 100; fresh input = 300, cached input = 75, output = 1500 (all per 1,000 tokens).
+- Reasoning tokens are billed as output tokens (same bucket as output).
+- Three token buckets: fresh, cached, output + reasoning. They are never added together first.
+- Rounding: sum the month's tokens per bucket, then round UP once per bucket
+  ((a + b - 1) // b). Never round per event.
+- GET /usage total = usage cost + plan subscription fee (base_price_cents x 10,000).

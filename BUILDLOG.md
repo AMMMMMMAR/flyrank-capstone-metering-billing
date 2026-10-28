@@ -37,3 +37,10 @@
 - Corrected an earlier plan: no in_progress row and no polling. One transaction plus the
   tenant lock is simpler: a concurrent duplicate just waits, then replays.
 - Known limit: records are not deleted yet. A cleanup job comes in Stage 8.
+
+## Stage 6
+- Claude wrote the pricing service, GET /usage and the proof script; I read them and ran them.
+- Decided: demo prices pinned in config, reasoning billed as output, round up once per
+  bucket on the monthly totals, calls priced at 100 micro-dollars each.
+- Corrected the earlier plan: money is called micro-dollars (not micro-cents), and the cost is
+  not stored on each event, it is calculated from the monthly totals.

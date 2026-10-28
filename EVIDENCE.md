@@ -164,3 +164,15 @@ content-type: application/json
 events with this key: 1
 saved responses with this key: 1
 ```
+
+## Stage 6: GET /usage and pricing rules (Probe 5)
+
+Command: python -m scripts.check_pricing (uses a temporary database)
+
+```
+```
+
+Real server: GET /usage for tenant Alpha (API key hidden), with the raw sums used to check it by hand:
+
+```
+```
