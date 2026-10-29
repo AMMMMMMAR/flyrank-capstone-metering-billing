@@ -116,3 +116,23 @@ class IdempotencyRecord(Base):
         UniqueConstraint("tenant_id", "key", name="uq_idempotency_tenant_key"),
         Index("idx_idempotency_created", "created_at"),  # for the cleanup job (later)
     )
+
+
+class ProcessedWebhookEvent(Base):
+    """One row per Stripe event we have seen. The PRIMARY KEY makes a replay impossible."""
+
+    __tablename__ = "processed_webhook_events"
+
+    event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_created: Mapped[int] = mapped_column(Integer, nullable=False)  # Stripe time, in seconds
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # "applied", "stale_ignored" or "ignored"
+    outcome: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
+
+    __table_args__ = (
+        Index("idx_webhook_tenant_created", "tenant_id", "event_created"),
+    )

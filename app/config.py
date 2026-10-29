@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./metering.db"
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
+    app_base_url: str = "http://localhost:8000"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

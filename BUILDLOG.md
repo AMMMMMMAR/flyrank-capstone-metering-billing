@@ -44,3 +44,12 @@
   bucket on the monthly totals, calls priced at 100 micro-dollars each.
 - Corrected the earlier plan: money is called micro-dollars (not micro-cents), and the cost is
   not stored on each event, it is calculated from the monthly totals.
+
+## Stage 7
+- Claude wrote the checkout service, the webhook handler and the proof script;
+  I read them and ran them.
+- Decided: the tenant id is written into client_reference_id and subscription metadata;
+  signatures are checked on the raw body; the event id and plan change are saved in one
+  transaction; older events are ignored (out of order); unknown events return 200.
+- I did not run the unverified "irm ... | iex" install script. I installed the Stripe CLI with
+  winget, from Stripe's documented install options.

@@ -176,3 +176,115 @@ Real server: GET /usage for tenant Alpha (API key hidden), with the raw sums use
 
 ```
 ```
+
+## Stage 7: Stripe Checkout and signed webhooks (Probes 3 and 4)
+
+Command: python -m scripts.check_stripe (temporary database, signed test events, no real Stripe call)
+
+```
+--- Probe 3: Checkout flips the tenant Free -> Pro ---
+PASS - checkout without an API key returns 401
+PASS - checkout returns 200 and a payment url
+PASS - the session asks for a subscription
+PASS - the tenant id travels in client_reference_id
+PASS - the tenant id is also copied onto the subscription metadata
+PASS - without a price id configured, checkout returns 503
+PASS - before the upgrade the Free tenant is blocked (429)
+PASS - /usage shows the Free limit (1000 calls)
+   webhook answer: {'received': True, 'outcome': 'applied'}
+PASS - the signed checkout.session.completed returns 200
+PASS - its outcome is applied
+PASS - the tenant is now on the pro plan
+PASS - the Stripe subscription id was saved
+PASS - /usage shows the Pro plan
+PASS - /usage shows the Pro limit (50000 calls)
+PASS - /usage shows the 29.00 subscription fee
+PASS - the same tenant can now make calls (200)
+PASS - a Pro tenant asking for checkout again gets 409
+--- Probe 4: forged and replayed webhooks ---
+PASS - a forged signature returns 400
+PASS - nothing changed after the forged event
+PASS - a missing signature header returns 400
+PASS - (test setup) the tampered body really is different
+PASS - a body changed after signing returns 400
+PASS - the tampered event upgraded nobody
+PASS - a correctly signed but 1-hour-old delivery returns 400
+PASS - a signed body that is not JSON returns 400, never 500
+PASS - first delivery returns 200 and is applied
+PASS - the tenant is Pro after the first delivery
+   replay answer: {'received': True, 'outcome': 'duplicate'}
+PASS - replaying the same event id returns 200
+PASS - the replay is reported as a duplicate
+PASS - the replay changed nothing (tenant is still free)
+PASS - the event is stored exactly once
+--- Events that must not break anything ---
+PASS - an event for an unknown tenant returns 200 and is ignored
+PASS - an event type we do not use returns 200 and is ignored
+PASS - news about an OLDER subscription does not downgrade the tenant
+--- Events arriving out of order ---
+PASS - E1 checkout completed is applied (plan pro)
+PASS - E2 past_due is applied
+PASS - a past_due tenant is blocked with 402
+PASS - E3 an older event arriving late is ignored (stale_ignored)
+PASS - the tenant is still past_due (402)
+PASS - E4 active is applied
+PASS - the tenant can use the API again (200)
+PASS - E5 subscription deleted is applied
+PASS - the tenant is back on the free plan
+PASS - the subscription id was cleared
+PASS - E6 an older 'active' event cannot bring Pro back
+
+All checks passed.
+```
+
+Real Stripe test mode (Probe 3). Tenant Alpha before and after paying with the 4242 test card. The upgrade came from a signed webhook, not from the success page:
+
+```
+before: {"tenant_id":1,"name":"Alpha Corp","plan":"free","monthly_call_quota":1000,"monthly_token_quota":100000,"subscription_status":"active"}
+after:  {"tenant_id":1,"name":"Alpha Corp","plan":"pro","monthly_call_quota":50000,"monthly_token_quota":5000000,"subscription_status":"active"}
+{
+    "tenant_id": 1,
+    "plan": "pro",
+    "subscription_status": "active",
+    "period": {
+        "start": "2026-10-01T00:00:00+00:00",
+        "end": "2026-11-01T00:00:00+00:00"
+    },
+    "calls": {
+        "used": 3,
+        "limit": 50000,
+        "remaining": 49997
+    },
+    "tokens": {
+        "used": 1460,
+        "limit": 5000000,
+        "remaining": 4998540,
+        "fresh_input": 200,
+        "cached_input": 50,
+        "output": 1010,
+        "reasoning": 200
+    },
+    "cost": {
+        "currency": "USD",
+        "unit": "micro-dollars (1 USD = 1,000,000)",
+        "calls_micros": 300,
+        "fresh_input_micros": 60,
+        "cached_input_micros": 4,
+        "output_and_reasoning_micros": 1815,
+        "usage_micros": 2179,
+        "subscription_micros": 29000000,
+        "total_micros": 29002179,
+        "total_usd": "29.002179"
+    }
+}
+processed_webhook_events (event_id, type, tenant_id, outcome):
+('evt_1UVoqpQrcVTMuLEC6YzpBIxl', 'checkout.session.completed', None, 'ignored')
+('evt_1UVp0AQrcVTMuLEC0E7jUefE', 'checkout.session.completed', 1, 'applied')
+```
+
+Forged webhook against the real server (Probe 4):
+
+```
+{"detail":"Invalid webhook signature."}
+HTTP 400
+```

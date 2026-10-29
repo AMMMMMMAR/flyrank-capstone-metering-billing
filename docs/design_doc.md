@@ -64,3 +64,18 @@ No invoicing, no proration, no overage billing, no real AI calls, no live Stripe
 - Rounding: sum the month's tokens per bucket, then round UP once per bucket
   ((a + b - 1) // b). Never round per event.
 - GET /usage total = usage cost + plan subscription fee (base_price_cents x 10,000).
+
+## Stripe (added in Stage 7)
+- POST /checkout-session creates a Stripe Checkout page (test mode, subscription).
+  The tenant id is sent as client_reference_id and as subscription metadata.
+- The "payment successful" page changes nothing. Only a verified webhook changes the plan.
+- POST /webhooks/stripe: read the RAW body, verify the Stripe-Signature (HMAC-SHA256,
+  5 minute window). Bad or missing signature -> 400, nothing changes.
+- Table processed_webhook_events: PRIMARY KEY event_id. The event id and the tenant change
+  are saved in ONE transaction. A replay returns 200 "duplicate" and changes nothing.
+- Out of order: an event older than the newest applied one for that tenant is ignored.
+- Events we do not understand, or about an unknown tenant, return 200 "ignored", so Stripe
+  does not retry them forever. A real failure returns 500 and Stripe retries.
+- States: checkout completed / subscription active -> pro, active.
+  past_due or unpaid -> pro, past_due (the API answers 402).
+  canceled -> free, active (subscription id cleared).
