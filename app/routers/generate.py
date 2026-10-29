@@ -97,8 +97,8 @@ def generate(
     except DuplicateKeyError:
         raise HTTPException(
             status_code=409,
-            detail="This Idempotency-Key was used before idempotency records "
-            "existed. Use a new key.",
+            detail="This Idempotency-Key was already used and its saved response expired "
+            "(older than 24 hours). Use a new key.",
         )
 
     if replayed:

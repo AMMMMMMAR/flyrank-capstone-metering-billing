@@ -136,3 +136,17 @@ class ProcessedWebhookEvent(Base):
     __table_args__ = (
         Index("idx_webhook_tenant_created", "tenant_id", "event_created"),
     )
+
+
+class JobAlert(Base):
+    """A failure alert, saved when a background job fails after all its retries."""
+
+    __tablename__ = "job_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    error: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )

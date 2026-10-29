@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     stripe_price_id: str = ""
     app_base_url: str = "http://localhost:8000"
 
+    # Background job (Stage 8)
+    background_jobs_enabled: bool = True
+    cleanup_interval_seconds: int = 3600  # how often the cleanup job runs
+    receipt_retention_hours: int = 24  # idempotency receipts older than this are deleted
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

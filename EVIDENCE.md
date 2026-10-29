@@ -288,3 +288,55 @@ Forged webhook against the real server (Probe 4):
 {"detail":"Invalid webhook signature."}
 HTTP 400
 ```
+
+## Stage 8: background job with retries and a failure alert
+
+Command: python -m scripts.check_cleanup (temporary database)
+
+```
+--- The cleanup job deletes only OLD receipts ---
+PASS - two requests were accepted
+PASS - 1202 receipts exist before the cleanup
+PASS - the job deleted the 1201 old receipts (in several batches)
+PASS - only the recent receipt is left
+PASS - no usage event was touched (billing history is safe)
+PASS - running the job again deletes nothing (safe to repeat)
+PASS - a recent key can still be replayed
+PASS - an expired key is refused with 409 (never a 500)
+   409 answer: {'detail': 'This Idempotency-Key was already used and its saved response expired (older than 24 hours). Use a new key.'}
+PASS - the expired key was NOT counted a second time
+--- Retries with backoff, and the failure alert ---
+PASS - a job that works the first time runs once and does not wait
+PASS - a job that fails twice and then works is retried and succeeds
+PASS - the waits grow: 1 second, then 2 seconds (backoff)
+PASS - no alert was raised, because it finally worked
+PASS - a job that always fails stops after 3 attempts
+PASS - it waited only BETWEEN attempts (1s, 2s)
+PASS - exactly one failure alert was saved
+   alert row: t-broken 3 RuntimeError: simulated failure 3
+PASS - the alert names the job, the attempts and the error
+PASS - if the alert itself cannot be saved, the worker still does not crash
+--- The job runs on a schedule, off the request path ---
+PASS - the job ran several times by itself
+PASS - it ran in its own thread, not in a request thread
+PASS - after stop() it does not run any more
+PASS - while a slow job is running, the API still answers fast
+--- The job starts and stops with the application ---
+PASS - the cleanup job is started with the application
+PASS - it is stopped when the application stops
+PASS - with BACKGROUND_JOBS_ENABLED=false no job is started
+
+All checks passed.
+```
+
+The job running on a schedule in the real server (interval 10 seconds, retention 0 hours, set only for this demo):
+
+```
+2026-10-29 14:00:03,462 INFO [jobs] job cleanup-old-receipts started (every 10 seconds)
+2026-10-29 14:00:13,491 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 1
+2026-10-29 14:00:23,500 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
+2026-10-29 14:00:33,502 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
+2026-10-29 14:00:43,517 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
+2026-10-29 14:00:53,531 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
+2026-10-29 14:01:03,535 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
+```

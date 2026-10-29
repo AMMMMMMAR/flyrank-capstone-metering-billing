@@ -11,7 +11,7 @@ from app.services.quota import PaymentRequiredError, QuotaExceededError, check_q
 
 
 class DuplicateKeyError(Exception):
-    """The key is in usage_events but has no saved response (data from before Stage 5)."""
+    """The key was used before, but its saved response is gone (older than the retention time)."""
 
 
 class IdempotencyKeyReuseError(Exception):
@@ -41,6 +41,23 @@ def _find_record(db: Session, tenant_id: int, key: str) -> IdempotencyRecord | N
             IdempotencyRecord.key == key,
         )
     )
+
+
+def _replay_saved_response(
+    db: Session, tenant_id: int, key: str, request_hash: str
+) -> tuple[dict, bool]:
+    """Called after the database refused a duplicate. Replay the saved answer if there is one."""
+    existing = _find_record(db, tenant_id, key)
+    if existing is None:
+        # The usage event exists but its receipt was deleted by the cleanup job.
+        db.rollback()
+        raise DuplicateKeyError(key)
+    stored_hash = existing.request_hash
+    stored_body = existing.response_body
+    db.rollback()
+    if stored_hash != request_hash:
+        raise IdempotencyKeyReuseError(key)
+    return json.loads(stored_body), True
 
 
 def record_usage(
@@ -97,7 +114,13 @@ def record_usage(
             reasoning_tokens=reasoning,
         )
         db.add(event)
-        db.flush()  # gives the event its id and recorded_at
+        try:
+            db.flush()  # gives the event its id and recorded_at
+        except IntegrityError:
+            # usage_events already has this (tenant, key). Replay if a receipt exists,
+            # otherwise the key is too old: DuplicateKeyError (HTTP 409), never a 500.
+            db.rollback()
+            return _replay_saved_response(db, tenant_id, idempotency_key, request_hash)
 
         result = {
             "result": "Simulated response. Usage recorded.",
@@ -126,14 +149,6 @@ def record_usage(
         except IntegrityError:
             # The database refused a duplicate. Normally the lock prevents this.
             db.rollback()
-            existing = _find_record(db, tenant_id, idempotency_key)
-            if existing is None:
-                raise DuplicateKeyError(idempotency_key)
-            stored_hash = existing.request_hash
-            stored_body = existing.response_body
-            db.rollback()
-            if stored_hash != request_hash:
-                raise IdempotencyKeyReuseError(idempotency_key)
-            return json.loads(stored_body), True
+            return _replay_saved_response(db, tenant_id, idempotency_key, request_hash)
 
     return result, False

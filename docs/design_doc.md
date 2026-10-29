@@ -79,3 +79,15 @@ No invoicing, no proration, no overage billing, no real AI calls, no live Stripe
 - States: checkout completed / subscription active -> pro, active.
   past_due or unpaid -> pro, past_due (the API answers 402).
   canceled -> free, active (subscription id cleared).
+
+## Background job (added in Stage 8)
+- Job: cleanup-old-receipts deletes idempotency receipts older than 24 hours, in batches of 500.
+  The webhook table is kept (it is replay protection). Usage events are never deleted.
+- It runs in its own thread every CLEANUP_INTERVAL_SECONDS, started and stopped by the app
+  lifespan, so no request ever waits for it.
+- Retries: up to 3 attempts, with waits of 1s then 2s (backoff). The job is safe to repeat.
+- Failure alert: after the last failed attempt, a CRITICAL log line AND a row in job_alerts.
+  The alert code never crashes the worker.
+- An expired key (event exists, receipt deleted) is refused with 409. It is never counted twice.
+- Limit: the scheduler lives inside the server process. Two server processes would both run
+  the job; this is harmless because deleting old rows is safe to repeat.

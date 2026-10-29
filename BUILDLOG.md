@@ -53,3 +53,11 @@
   transaction; older events are ignored (out of order); unknown events return 200.
 - I did not run the unverified "irm ... | iex" install script. I installed the Stripe CLI with
   winget, from Stripe's documented install options.
+
+## Stage 8
+- Claude wrote the cleanup job, the retry/alert runner, the lifespan wiring and the proof script;
+  I read them and ran them.
+- Decided: a small thread-based scheduler (no new library), 3 attempts with 1s/2s backoff,
+  alert = CRITICAL log + job_alerts row, delete in batches.
+- Claude found a bug in its own Stage 5 code: flush() was outside the try block, so an expired
+  key would have caused a 500. Fixed in metering.py and covered by check_cleanup.py.
