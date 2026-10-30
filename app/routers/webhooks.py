@@ -21,7 +21,12 @@ logger = logging.getLogger("billing")
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     if not settings.stripe_webhook_secret:
-        raise HTTPException(status_code=503, detail="Webhook secret is not configured.")
+        # Without the secret nothing can be verified, so nothing is accepted.
+        logger.error("webhook rejected: STRIPE_WEBHOOK_SECRET is not configured")
+        raise HTTPException(
+            status_code=400,
+            detail="Webhook signature cannot be verified: the webhook secret is not configured.",
+        )
 
     # The signature covers the RAW bytes. Read them BEFORE any JSON parsing.
     payload = await request.body()

@@ -103,3 +103,11 @@ No invoicing, no proration, no overage billing, no real AI calls, no live Stripe
   read the new file, then alembic upgrade head. On SQLite, batch mode rebuilds tables for ALTERs.
 - The proof scripts (check_*.py) still use create_all on throw-away databases for speed.
   check_migrations.py proves that the migrations build the same schema as models.py.
+
+## Submission (added in Stage 10)
+- One command runs the system: python -m scripts.start (apply the migrations, then start the server).
+  Seed step: python -m scripts.seed [--demo-keys]. Test command: python -m scripts.run_all_checks.
+- --demo-keys uses fixed PUBLIC keys so reviewers can copy and paste commands. Demo databases only.
+- A webhook call while STRIPE_WEBHOOK_SECRET is not set is rejected with 400: nothing can be verified,
+  so nothing is accepted.
+- Subscription state lives on the tenants row (one subscription per tenant, one paid plan).

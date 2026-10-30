@@ -1,3 +1,4 @@
+import argparse
 import secrets
 import sys
 
@@ -29,8 +30,15 @@ TENANTS = [
     ("Beta LLC", "beta@example.com", "pro"),
 ]
 
+# PUBLIC demo keys, only for demo databases:  python -m scripts.seed --demo-keys
+# They let a reviewer copy and paste the commands from the README. Never use them for real data.
+DEMO_KEYS = {
+    "alpha@example.com": "mk_demo_alpha_free_0000",
+    "beta@example.com": "mk_demo_beta_pro_0000",
+}
 
-def seed() -> None:
+
+def seed(demo_keys: bool = False) -> None:
     # The tables are built by the migrations, no longer by this script.
     if not inspect(engine).has_table("plans"):
         print("The database tables do not exist yet. Create them first with:  alembic upgrade head")
@@ -53,7 +61,10 @@ def seed() -> None:
                 print(f"tenant already exists: {name} (its key was shown the first time)")
                 continue
 
-            raw_key = "mk_" + secrets.token_urlsafe(24)
+            if demo_keys:
+                raw_key = DEMO_KEYS[email]
+            else:
+                raw_key = "mk_" + secrets.token_urlsafe(24)
             db.add(
                 models.Tenant(
                     name=name,
@@ -67,4 +78,10 @@ def seed() -> None:
 
 
 if __name__ == "__main__":
-    seed()
+    parser = argparse.ArgumentParser(description="Create the starter plans and two demo tenants.")
+    parser.add_argument(
+        "--demo-keys",
+        action="store_true",
+        help="use the fixed PUBLIC demo API keys (demo databases only)",
+    )
+    seed(demo_keys=parser.parse_args().demo_keys)

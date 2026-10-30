@@ -68,3 +68,39 @@
 - Decided: one baseline migration written by hand and checked against models.py by the proof script
   (no differences); stamp the existing database instead of rebuilding it; SQLite stays the database.
 - Honest limit: I only ran the migrations on SQLite. Postgres would need its own driver and a test run.
+
+## Stage 10
+- Claude wrote the README, capstone.yaml, the one-command start script, run_all_checks.py and
+  check_submission.py; I read them and ran them.
+- Found while preparing the reviewer dress rehearsal: with no STRIPE_WEBHOOK_SECRET the webhook
+  answered 503, but a forged-signature probe expects 400. Changed to 400.
+- Added --demo-keys to the seed script so reviewers can copy and paste commands. Random keys stay the default.
+- Honest gap: the brief lists a subscriptions table; mine keeps subscription state on the tenants row.
+  It is explained in the README limitations.
+
+## Summary: where AI helped and where it was wrong
+- Helped: Claude explained each concept first, wrote the code stage by stage, and wrote a proof script
+  for every stage. I ran every script and read the code before committing.
+- Wrong or corrected:
+  1. The first AI agent's plan (before I restarted): "check, then insert" idempotency (a race), locking the
+     wrong row for the quota check, a rounding explanation that was about 1000 times too big, the name
+     "micro-cents" for micro-dollars, a background job that was too big, and tests left until the end.
+  2. Claude's Stage 5 code had a bug: flush() sat outside the try block, so an expired key would have
+     caused a 500. Claude found it while designing Stage 8; it was fixed and covered by check_cleanup.py.
+  3. Claude's first fix for the Stripe CLI PATH problem ran "activate" afterwards, which restored the old
+     PATH. Claude corrected the order of the commands.
+  4. My own mistake: I paid in Stripe before starting "stripe listen", so my first two payments never reached
+     my server (the CLI only forwards events while it runs). The third payment worked.
+  5. Claude's Stage 10 instructions put code blocks inside a code block, so the copy button cut off the
+     README. Claude gave the README as a separate file.
+
+## Security note: a local API key in one old commit
+- My final secret scan found one API key of the form mk_... in a comment line of .env.example in ONE old
+  commit (f3a9af1). It was my own demo key for the Alpha tenant, so it only ever opened my local database,
+  which is not in the repository.
+- It is not a Stripe key and not a webhook secret. The scan found none of those in any commit.
+- I rotated it: a new random key replaced it in my database, and I checked that the old value no longer
+  matches any tenant. A new key was printed on screen during the rotation, so I rotated Alpha again, and
+  I rotated Beta's key too, to keep every key private.
+- I did not rewrite the Git history, because the old value is now worthless and the history is part of the
+  evidence. Lesson: private notes never go into .env.example or any tracked file.

@@ -1,0 +1,36 @@
+# Manifest for the reviewer. Every command runs from the project folder.
+name: flyrank-capstone-metering-billing
+language: python            # Python 3.10 or newer
+install: pip install -r requirements.txt
+run: python -m scripts.start            # applies the migrations, then starts the API
+seed: alembic upgrade head && python -m scripts.seed --demo-keys
+test: python -m scripts.run_all_checks  # 6 proof scripts, temporary databases, no Stripe account needed
+base_url: http://127.0.0.1:8000
+
+# The demo keys below are PUBLIC on purpose. They only exist after "seed --demo-keys".
+# Stripe Checkout and real webhooks need the reviewer's own Stripe TEST keys in .env (see README).
+endpoints:
+  - method: GET
+    path: /health
+    expect: 200
+  - method: GET
+    path: /me
+    expect: 401              # no API key
+  - method: GET
+    path: /me
+    headers: { X-API-Key: mk_demo_alpha_free_0000 }
+    expect: 200
+  - method: GET
+    path: /usage
+    headers: { X-API-Key: mk_demo_alpha_free_0000 }
+    expect: 200
+  - method: POST
+    path: /generate
+    headers: { X-API-Key: mk_demo_alpha_free_0000, Idempotency-Key: probe-1 }
+    body: { fresh_input_tokens: 100, output_tokens: 500 }
+    expect: 200              # send it twice: same answer, header Idempotent-Replayed: true
+  - method: POST
+    path: /webhooks/stripe
+    headers: { Stripe-Signature: "t=1700000000,v1=forged" }
+    body: { id: evt_forged, type: checkout.session.completed }
+    expect: 400              # forged signature

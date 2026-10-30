@@ -1,21 +1,46 @@
 # Evidence
 
-One proof per requirement. Filled in as each stage is finished.
+One proof per requirement of the brief (Section 6) and per shared requirement.
+Every proof below was produced by running the command shown, on my own machine.
+The proof scripts use temporary databases. The "real server" transcripts use my own database.
+Run everything again with: python -m scripts.run_all_checks
 
-## Probe 1: Idempotency
-(todo)
+## Requirements checklist
 
-## Probe 2: Quota boundary
-(todo)
+| # | Requirement (Section 6 of the brief) | Proof |
+|---|---|---|
+| 1 | A billable action creates exactly one usage event, even under retries | Stage 5 |
+| 2 | Usage is checked against the plan; requests over the limit are rejected | Stage 4 |
+| 3 | 429 and 402 with a clear message that explains why | Stage 4, Stage 7 |
+| 4 | Monthly usage rolls up into a cost figure per tenant | Stage 6 |
+| 5 | AI token pricing: cached input, reasoning as output, categories not simply added | Stage 6 |
+| 6 | Pricing constants pinned in config, with proof of correct totals | Stage 6 (constants in app/config.py) |
+| 7 | Subscription checkout works end-to-end in Stripe test mode | Stage 7 |
+| 8 | Webhooks verify signatures, ignore duplicates, update plan and status | Stage 7 |
+| 9 | Database with tenants, plans, subscriptions, usage events; data isolated per tenant | Stage 1, Stage 9 (isolation: Stage 5, Stage 6). Subscription state is columns on the tenants row, see README limitations |
+| 10 | README, architecture diagram, setup instructions, required files | Stage 10 |
 
-## Probe 3: Stripe checkout upgrades the plan
-(todo)
+## Acceptance probes
 
-## Probe 4: Forged webhook and replay
-(todo)
+| Probe | What | Proof |
+|---|---|---|
+| 1 | Same request twice with one key = one usage event, same response | Stage 5 |
+| 2 | Exact quota boundary, then 429 / 402 with a clear message | Stage 4 |
+| 3 | Stripe test Checkout flips Free to Pro, /usage shows the new limits | Stage 7 |
+| 4 | Forged webhook gets 400; a replayed event is processed once | Stage 7 |
+| 5 | Pricing rules give exact totals and /usage matches | Stage 6 |
 
-## Probe 5: Pricing rules
-(todo)
+## Shared requirements (every capstone)
+
+| # | Requirement | Proof |
+|---|---|---|
+| 1 | Layered architecture: data, logic, HTTP separated | README (Architecture, Project layout) |
+| 2 | Validation at the boundary: bad input gives a clean 4xx, never a 500 | Stage 3, Stage 7, Stage 8, Stage 10 |
+| 3 | At least one background job with retries and a failure alert | Stage 8 |
+| 4 | Real persistence: schema as migrations, indexes, isolated tenants | Stage 9 |
+| 5 | Idempotency where it matters | Stage 5 (usage), Stage 7 (Stripe events) |
+| 6 | Secrets clean: env only, never committed, never logged | Stage 10 |
+| 7 | Cost tracked if AI is used | Not applicable: no AI model is called, token counts are simulated. Cost per tenant is in Stage 6 |
 
 ## Stage 1: rules enforced by the database
 
@@ -419,4 +444,109 @@ INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogener
 INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
 INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
 No new upgrade operations detected.
+```
+
+
+## Stage 10: submission pack and final checks
+
+All proof scripts together (python -m scripts.run_all_checks):
+
+```
+Running 6 proof scripts, one after another...
+OK   Schema built from the migrations              28 checks passed    2.7s
+OK   Quota boundary, 429 and 402 (Probe 2)         12 checks passed   19.0s
+OK   Idempotent metering (Probe 1)                 22 checks passed    2.5s
+OK   Pricing rules and /usage (Probe 5)            29 checks passed    2.2s
+OK   Stripe checkout and webhooks (Probes 3, 4)    45 checks passed    2.6s
+OK   Background job: retries and alert             25 checks passed    4.2s
+
+Total: 161 checks passed, 0 failed.
+All checks passed.
+```
+
+Dress rehearsal of a reviewer's run on a clean setup: temporary database, no Stripe keys, the documented run and seed commands, probes over HTTP (python -m scripts.check_submission):
+
+```
+--- The submission pack ---
+PASS - README.md exists and is not empty
+PASS - capstone.yaml exists and is not empty
+PASS - EVIDENCE.md exists and is not empty
+PASS - BUILDLOG.md exists and is not empty
+PASS - .env.example exists and is not empty
+PASS - .gitignore exists and is not empty
+PASS - requirements.txt exists and is not empty
+PASS - alembic.ini exists and is not empty
+PASS - docs/design_doc.md exists and is not empty
+PASS - README has an architecture section
+PASS - README documents the run command
+PASS - README documents the seed command
+PASS - README has a limitations section
+PASS - capstone.yaml has run:
+PASS - capstone.yaml has seed:
+PASS - capstone.yaml has test:
+PASS - capstone.yaml has base_url:
+PASS - capstone.yaml has endpoints:
+PASS - EVIDENCE.md has no unfinished (todo) parts
+PASS - EVIDENCE.md has the requirements checklist
+PASS - .env.example lists every setting the app reads
+PASS - .env is not tracked by git
+PASS - .env.example is tracked by git
+PASS - no database file is tracked by git
+--- Start the system with the documented run command (temporary database, no Stripe keys) ---
+PASS - the run command boots the system and /health answers
+PASS - the seed command works on the fresh database
+--- Probe the live system ---
+PASS - the interactive docs page answers at /docs
+PASS - GET /me without an API key returns 401
+PASS - GET /me with a wrong key returns 401
+PASS - the demo Free tenant is known
+PASS - the demo Pro tenant has the Pro limits
+PASS - POST /generate returns 200
+PASS - the same request again returns 200 with the IDENTICAL body
+PASS - the second answer is marked as a replay
+PASS - the first answer is not marked as a replay
+PASS - GET /usage shows exactly 1 call (the retry was not counted)
+PASS - GET /usage shows the exact cost: 100 + 30 + 750 = 880 micro-dollars
+PASS - POST /generate without Idempotency-Key returns 400
+PASS - a negative token count returns 422, never 500
+PASS - the same key with a different body returns 422
+PASS - a forged webhook returns 400
+PASS - the forged webhook changed nothing
+PASS - checkout says 'not configured' (503) when there are no Stripe keys
+
+All checks passed.
+```
+
+Secrets are clean (requirement 6). Scan of every file in every commit for Stripe secret keys and webhook secrets:
+
+```
+no Stripe secret key and no webhook secret in any file of any commit
+```
+
+Scan for my own API keys (mk_...). One old commit had a local demo key in a comment. It only ever opened my local database, and I rotated it:
+
+```
+commit f3a9af1, file .env.example (value not shown; this key was rotated, see BUILDLOG.md)
+```
+
+The only environment file tracked by git:
+
+```
+.env.example
+```
+
+Every log statement in the application, to show that no secret is logged (only error type names, ids and job names):
+
+```
+app/jobs/runner.py:29:    logger.critical(
+app/jobs/runner.py:37:        logger.critical("could not save the alert row: %s", alert_error)
+app/jobs/runner.py:55:            logger.info("job %s succeeded on attempt %d: %s", job_name, attempt, result)
+app/jobs/runner.py:59:            logger.warning(
+app/jobs/runner.py:84:        logger.info("job %s started (every %s seconds)", self.name, self.interval_seconds)
+app/jobs/runner.py:90:        logger.info("job %s stopped", self.name)
+app/jobs/runner.py:100:                logger.exception("unexpected error in the loop of job %s", self.name)
+app/routers/webhooks.py:25:        logger.error("webhook rejected: STRIPE_WEBHOOK_SECRET is not configured")
+app/routers/webhooks.py:41:        logger.warning("webhook rejected: invalid signature")
+app/services/stripe_sync.py:64:        logger.error("Stripe refused the checkout session: %s", type(error).__name__)
+app/services/stripe_sync.py:130:            logger.warning("checkout event for an unknown tenant: %s", tenant_id)
 ```
