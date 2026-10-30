@@ -104,3 +104,10 @@
   I rotated Beta's key too, to keep every key private.
 - I did not rewrite the Git history, because the old value is now worthless and the history is part of the
   evidence. Lesson: private notes never go into .env.example or any tracked file.
+
+## Stage 10 follow-up: a bug in my own check
+- The fresh-clone test found one FAIL in check_submission.py: "EVIDENCE.md has no unfinished (todo) parts".
+- Cause: the check searched EVIDENCE.md for the text (todo), but EVIDENCE.md now contains the recorded
+  output of this very check, and its own PASS line contains the words "(todo)". The check matched itself.
+- Fix: the check now only fails on a line that is exactly (todo), which is how the old placeholders looked.
+- Claude wrote the check and did not run it against the finished EVIDENCE.md. The fresh clone caught it.

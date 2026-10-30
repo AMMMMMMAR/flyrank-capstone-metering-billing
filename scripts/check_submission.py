@@ -130,7 +130,7 @@ def pack_checks():
         check(f"capstone.yaml has {key}", key in manifest)
 
     evidence = read("EVIDENCE.md")
-    check("EVIDENCE.md has no unfinished (todo) parts", "(todo)" not in evidence)
+    check("EVIDENCE.md has no unfinished (todo) parts", not any(line.strip() == "(todo)" for line in evidence.splitlines()))
     check("EVIDENCE.md has the requirements checklist", "## Requirements checklist" in evidence)
 
     from app.config import Settings

@@ -550,3 +550,56 @@ app/routers/webhooks.py:41:        logger.warning("webhook rejected: invalid sig
 app/services/stripe_sync.py:64:        logger.error("Stripe refused the checkout session: %s", type(error).__name__)
 app/services/stripe_sync.py:130:            logger.warning("checkout event for an unknown tenant: %s", tenant_id)
 ```
+
+Re-run of the dress rehearsal after fixing a bug in the check itself (see BUILDLOG.md). The fresh-clone test found that the check for unfinished parts also matched its own PASS line inside this file:
+
+```
+--- The submission pack ---
+PASS - README.md exists and is not empty
+PASS - capstone.yaml exists and is not empty
+PASS - EVIDENCE.md exists and is not empty
+PASS - BUILDLOG.md exists and is not empty
+PASS - .env.example exists and is not empty
+PASS - .gitignore exists and is not empty
+PASS - requirements.txt exists and is not empty
+PASS - alembic.ini exists and is not empty
+PASS - docs/design_doc.md exists and is not empty
+PASS - README has an architecture section
+PASS - README documents the run command
+PASS - README documents the seed command
+PASS - README has a limitations section
+PASS - capstone.yaml has run:
+PASS - capstone.yaml has seed:
+PASS - capstone.yaml has test:
+PASS - capstone.yaml has base_url:
+PASS - capstone.yaml has endpoints:
+PASS - EVIDENCE.md has no unfinished (todo) parts
+PASS - EVIDENCE.md has the requirements checklist
+PASS - .env.example lists every setting the app reads
+PASS - .env is not tracked by git
+PASS - .env.example is tracked by git
+PASS - no database file is tracked by git
+--- Start the system with the documented run command (temporary database, no Stripe keys) ---
+PASS - the run command boots the system and /health answers
+PASS - the seed command works on the fresh database
+--- Probe the live system ---
+PASS - the interactive docs page answers at /docs
+PASS - GET /me without an API key returns 401
+PASS - GET /me with a wrong key returns 401
+PASS - the demo Free tenant is known
+PASS - the demo Pro tenant has the Pro limits
+PASS - POST /generate returns 200
+PASS - the same request again returns 200 with the IDENTICAL body
+PASS - the second answer is marked as a replay
+PASS - the first answer is not marked as a replay
+PASS - GET /usage shows exactly 1 call (the retry was not counted)
+PASS - GET /usage shows the exact cost: 100 + 30 + 750 = 880 micro-dollars
+PASS - POST /generate without Idempotency-Key returns 400
+PASS - a negative token count returns 422, never 500
+PASS - the same key with a different body returns 422
+PASS - a forged webhook returns 400
+PASS - the forged webhook changed nothing
+PASS - checkout says 'not configured' (503) when there are no Stripe keys
+
+All checks passed.
+```
