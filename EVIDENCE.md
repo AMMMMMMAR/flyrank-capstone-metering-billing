@@ -340,3 +340,83 @@ The job running on a schedule in the real server (interval 10 seconds, retention
 2026-10-29 14:00:53,531 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
 2026-10-29 14:01:03,535 INFO [jobs] job cleanup-old-receipts succeeded on attempt 1: 0
 ```
+
+## Stage 9: schema as migrations (Alembic)
+
+Command: python -m scripts.check_migrations (temporary database)
+
+```
+--- Build a brand new database from the migrations ---
+PASS - the migration history has exactly one head
+PASS - all 6 tables were created (plus the alembic_version table)
+PASS - the 3 indexes were created
+PASS - the database is at the latest revision
+PASS - the migrated schema has NO differences from models.py
+--- The seed script works on a migrated database ---
+PASS - the first seed creates 2 plans and 2 tenants
+PASS - the second seed creates nothing (safe to repeat)
+PASS - exactly 2 plans and 2 tenants exist
+--- The database rules exist in the MIGRATED schema ---
+PASS - an event for a tenant that does not exist is refused (foreign key)
+PASS - negative calls are refused (check constraint)
+PASS - a valid usage event is accepted
+PASS - the same (tenant, key) twice is refused (unique)
+PASS - the same key for ANOTHER tenant is accepted (keys belong to one tenant)
+PASS - deleting a tenant that has usage events is refused (RESTRICT protects the ledger)
+PASS - deleting a plan that tenants use is refused
+PASS - a second tenant with the same email is refused (unique)
+PASS - the same receipt (tenant, key) twice is refused (unique)
+PASS - the same Stripe event id twice is refused (primary key)
+PASS - deleting a tenant with no billing history also removes its receipts (CASCADE)
+--- Going back: downgrade to the empty database ---
+PASS - downgrade removed every table (only alembic_version is left)
+PASS - the database has no revision now
+PASS - seed refuses to run without tables, and says what to do
+--- An OLD database made by create_all, adopted with stamp ---
+PASS - the old-style database has no revision yet
+PASS - after stamp, the database is at the latest revision
+PASS - upgrade after stamp changes nothing
+PASS - the stamped old database matches the models (stamp was safe)
+--- Repeatable: down and up again ---
+PASS - up again gives the full schema
+PASS - and still no differences from models.py
+
+All checks passed.
+```
+
+A brand new database, built by the migrations and seeded (the two commands a stranger runs; API keys hidden):
+
+```
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_initial_schema, initial schema
+created plan: free
+created plan: pro
+created tenant: Alpha Corp (free)  API KEY: (hidden)
+created tenant: Beta LLC (pro)  API KEY: (hidden)
+second seed run:
+plan already exists: free
+plan already exists: pro
+tenant already exists: Alpha Corp (its key was shown the first time)
+tenant already exists: Beta LLC (its key was shown the first time)
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+0001_initial_schema (head)
+```
+
+My real database, adopted with 'alembic stamp head', then checked against the models:
+
+```
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+0001_initial_schema (head)
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+No new upgrade operations detected.
+```

@@ -1,9 +1,10 @@
 import secrets
+import sys
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 
 from app import models
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal, engine
 from app.security import hash_api_key
 
 PLANS = [
@@ -30,7 +31,10 @@ TENANTS = [
 
 
 def seed() -> None:
-    Base.metadata.create_all(bind=engine)
+    # The tables are built by the migrations, no longer by this script.
+    if not inspect(engine).has_table("plans"):
+        print("The database tables do not exist yet. Create them first with:  alembic upgrade head")
+        sys.exit(1)
 
     with SessionLocal() as db:
         for plan in PLANS:

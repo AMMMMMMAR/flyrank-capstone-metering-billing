@@ -61,3 +61,10 @@
   alert = CRITICAL log + job_alerts row, delete in batches.
 - Claude found a bug in its own Stage 5 code: flush() was outside the try block, so an expired
   key would have caused a 500. Fixed in metering.py and covered by check_cleanup.py.
+
+## Stage 9
+- Claude wrote the Alembic setup, the baseline migration, the new seed script and the proof script;
+  I read them and ran them.
+- Decided: one baseline migration written by hand and checked against models.py by the proof script
+  (no differences); stamp the existing database instead of rebuilding it; SQLite stays the database.
+- Honest limit: I only ran the migrations on SQLite. Postgres would need its own driver and a test run.

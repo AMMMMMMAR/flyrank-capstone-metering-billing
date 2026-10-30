@@ -91,3 +91,15 @@ No invoicing, no proration, no overage billing, no real AI calls, no live Stripe
 - An expired key (event exists, receipt deleted) is refused with 409. It is never counted twice.
 - Limit: the scheduler lives inside the server process. Two server processes would both run
   the job; this is harmless because deleting old rows is safe to repeat.
+
+## Migrations (added in Stage 9)
+- The schema is built by Alembic migrations (alembic/versions), not by create_all.
+  0001_initial_schema creates all 6 tables, the constraints and the 3 indexes.
+- A new database: alembic upgrade head, then python -m scripts.seed.
+- An existing database that already has the tables (made by the old create_all): alembic stamp head,
+  then alembic check must report no differences.
+- seed.py no longer creates tables. It stops with a clear message if they are missing.
+- Changing a table later: edit models.py, then alembic revision --autogenerate -m "what changed",
+  read the new file, then alembic upgrade head. On SQLite, batch mode rebuilds tables for ALTERs.
+- The proof scripts (check_*.py) still use create_all on throw-away databases for speed.
+  check_migrations.py proves that the migrations build the same schema as models.py.
